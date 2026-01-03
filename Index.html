@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Tracker - متعقب تعبئة المياه</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 550px; }
+        h2 { text-align: center; color: #004dcf; margin-top: 0; border-bottom: 2px solid #eef; padding-bottom: 10px; }
+        .member-list { list-style: none; padding: 0; margin-bottom: 20px; }
+        .member-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border: 1px solid #eee; margin-bottom: 8px; border-radius: 8px; }
+        .member-item.active { border: 2px solid #004dcf; background-color: #eef5ff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .member-item.active .member-label { color: #004dcf; font-weight: bold; }
+        .member-item.completed { background-color: #fafafa; opacity: 0.6; }
+        .info { flex-grow: 1; text-align: left; }
+        .arabic-text { display: block; font-size: 0.9em; color: #666; margin-bottom: 2px; }
+        .owner-tag { background: #004dcf; color: white; font-size: 0.7em; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-right: 5px; }
+        
+        button { background-color: #28a745; color: white; border: none; padding: 12px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em; line-height: 1.2; }
+        button:disabled { background-color: #dadce0; cursor: not-allowed; }
+        .btn-ar { display: block; font-size: 0.8em; font-weight: normal; }
+        
+        .history-section { margin-top: 25px; width: 100%; max-width: 550px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .history-title { font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .log-item { font-size: 0.9em; padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; }
+        .log-name { font-weight: 600; color: #333; }
+        .timestamp { color: #666; font-size: 0.85em; text-align: right; }
+        
+        .reset-btn { background-color: #dc3545; color: white; margin-top: 15px; width: 100%; font-size: 0.8em; opacity: 0.7; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
+        .reset-btn:hover { opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Water Tracker | متعقب المياه</h2>
+    <div id="memberList" class="member-list"></div>
+    <button class="reset-btn" onclick="resetTracker()">Reset System | إعادة ضبط النظام</button>
+</div>
+
+<div class="history-section">
+    <div class="history-title">
+        <span>History | السجل</span>
+        <span style="font-size: 0.7em; color: #666;">(Date & Time)</span>
+    </div>
+    <div id="historyLog"></div>
+</div>
+
+<script>
+    const members = [
+        { label: "House Owner", labelAr: "صاحب المنزل", name: "Abu Abdul Malik", target: 2 },
+        { label: "Flat 1", labelAr: "شقة ١", name: "Inamullah", target: 1 },
+        { label: "Flat 2", labelAr: "شقة ٢", name: "Ihsan", target: 1 },
+        { label: "Flat 3", labelAr: "شقة ٣", name: "Mohaideen", target: 1 },
+        { label: "Flat 4", labelAr: "شقة ٤", name: "Zakhir Hussain", target: 1 }
+    ];
+
+    let currentIndex = localStorage.getItem('waterIndex') ? parseInt(localStorage.getItem('waterIndex')) : 0;
+    let currentPaidCount = localStorage.getItem('waterPaid') ? parseInt(localStorage.getItem('waterPaid')) : 0;
+    let history = localStorage.getItem('waterHistory') ? JSON.parse(localStorage.getItem('waterHistory')) : [];
+
+    function render() {
+        const listDiv = document.getElementById('memberList');
+        listDiv.innerHTML = '';
+        
+        members.forEach((member, index) => {
+            const item = document.createElement('div');
+            item.className = 'member-item';
+            if (index === currentIndex) item.classList.add('active');
+            if (index < currentIndex) item.classList.add('completed');
+            
+            const isOwner = member.label === "House Owner";
+
+            item.innerHTML = `
+                <div class="info">
+                    <span class="arabic-text">${member.labelAr}</span>
+                    <div class="member-label">
+                        ${isOwner ? '<span class="owner-tag">Owner</span>' : ''}
+                        <strong>${member.label}</strong>
+                    </div>
+                    <div style="color: #555;">${member.name}</div>
+                    <small style="color: #888;">Payments: ${index === currentIndex ? currentPaidCount : (index < currentIndex ? member.target : 0)} / ${member.target}</small>
+                </div>
+                <button ${index !== currentIndex ? 'disabled' : ''} onclick="handlePay(${index})">
+                    Confirm Pay
+                    <span class="btn-ar">تأكيد الدفع</span>
+                </button>
+            `;
+            listDiv.appendChild(item);
+        });
+
+        const logDiv = document.getElementById('historyLog');
+        logDiv.innerHTML = history.length === 0 ? '<div style="color:#999; text-align:center;">No history | لا يوجد سجل</div>' : '';
+        
+        history.slice().reverse().forEach(entry => {
+            const log = document.createElement('div');
+            log.className = 'log-item';
+            log.innerHTML = `
+                <span class="log-name">${entry.labelAr}: ${entry.name}</span>
+                <span class="timestamp">${entry.date}<br>${entry.time}</span>
+            `;
+            logDiv.appendChild(log);
+        });
+    }
+
+    function handlePay(index) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-GB'); 
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        history.push({
+            labelAr: members[index].labelAr,
+            name: members[index].name,
+            date: dateStr,
+            time: timeStr
+        });
+
+        currentPaidCount++;
+        
+        if (currentPaidCount >= members[currentIndex].target) {
+            currentIndex++;
+            currentPaidCount = 0;
+        }
+
+        if (currentIndex >= members.length) {
+            alert("Full cycle complete! | اكتملت الدورة بالكامل");
+            currentIndex = 0;
+            currentPaidCount = 0;
+        }
+
+        saveData();
+        render();
+    }
+
+    function resetTracker() {
+        const password = prompt("Enter Password to reset: | أدخل كلمة المرور للإعادة:");
+        
+        if (password === "Adm1n@IT") {
+            if(confirm("Delete all history? | هل تريد مسح السجل؟")) {
+                currentIndex = 0;
+                currentPaidCount = 0;
+                history = [];
+                saveData();
+                render();
+                alert("Reset successful | تمت إعادة الضبط");
+            }
+        } else if (password !== null) {
+            alert("Incorrect password | كلمة مرور خاطئة");
+        }
+    }
+
+    function saveData() {
+        localStorage.setItem('waterIndex', currentIndex);
+        localStorage.setItem('waterPaid', currentPaidCount);
+        localStorage.setItem('waterHistory', JSON.stringify(history));
+    }
+
+    render();
+</script>
+
+</body>
+</html>
